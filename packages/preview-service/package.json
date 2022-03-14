@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.17.5",
-    "eslint": "^7.15.0",
+    "eslint": "^8.11.0",
     "babel-loader": "^8.2.2",
     "clean-webpack-plugin": "^4.0.0-alpha.0",
     "html-webpack-plugin": "^5.3.1",

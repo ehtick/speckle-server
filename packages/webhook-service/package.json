@@ -22,6 +22,7 @@
     "private-ip": "^2.3.3"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "eslint": "^8.11.0"
   }
 }
