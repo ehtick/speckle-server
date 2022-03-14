@@ -3,7 +3,7 @@
     "browser": true,
     "es2021": true
   },
-  "ignorePatterns": ["main-frontend.js"],
+  "ignorePatterns": ["node_modules", "dist", "nginx", "public"],
   "extends": [
     "plugin:vue/recommended",
     "prettier",
