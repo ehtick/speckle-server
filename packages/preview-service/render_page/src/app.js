@@ -11,9 +11,9 @@ window.LoadData = async function LoadData( url ) {
   await v.loadObject( url, token )
 }
 
-window.onload = (event) => {
-  let testUrl = window.location.hash.substr(1);
-  if (testUrl) {
-    LoadData(testUrl);
+window.onload = ( event ) => {
+  let testUrl = window.location.hash.substr( 1 )
+  if ( testUrl ) {
+    LoadData( testUrl )
   };
-};
+}

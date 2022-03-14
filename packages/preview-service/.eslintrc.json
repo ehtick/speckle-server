@@ -7,7 +7,7 @@
   "parserOptions": {
     "ecmaVersion": 11
   },
-  "ignorePatterns": ["node_modules/*"],
+  "ignorePatterns": ["node_modules/**/*", "public/**/*"],
   "rules": {
     "arrow-spacing": [
       2,
@@ -37,5 +37,13 @@
         "nonwords": false
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["render_page/**/*.js"],
+      "parserOptions": {
+        "sourceType": "module"
+      }
+    }
+  ]
 }

@@ -17,7 +17,7 @@ module.exports = {
     'space-before-blocks': 'error',
     'space-infix-ops': 'error',
     'comma-dangle': [ 'error', 'never' ],
-    'no-console': [ 'warn', { allow: [ 'warn', 'error' ] } ],
+    // 'no-console': [ 'warn', { allow: [ 'warn', 'error' ] } ], // TODO: This seems to be ignored
     'space-unary-ops': 'error',
     'no-var': 'error',
     'no-alert': 'error',
