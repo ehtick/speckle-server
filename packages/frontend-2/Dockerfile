@@ -1,4 +1,4 @@
-FROM node:18-bookworm-slim@sha256:408f8cbbb7b33a5bb94bdb8862795a94d2b64c2d516856824fd86c4a5594a443 as build-stage
+FROM node:18-bookworm-slim@sha256:9ea28e09082d1aa86750859cefbcca5e0baf49bdcf071fc7bfa490d3ff313403 as build-stage
 ARG NODE_ENV=production
 ARG SPECKLE_SERVER_VERSION=custom
 
