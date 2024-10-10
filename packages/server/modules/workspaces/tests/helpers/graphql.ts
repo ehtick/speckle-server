@@ -1,9 +1,10 @@
-import { gql } from 'apollo-server-express'
+import { gql } from 'graphql-tag'
 
 export const basicWorkspaceFragment = gql`
   fragment BasicWorkspace on Workspace {
     id
     name
+    slug
     updatedAt
     createdAt
     role
@@ -44,6 +45,7 @@ export const workspaceBillingFragment = gql`
           count
           name
           cost
+          label
         }
         discount {
           name
@@ -173,8 +175,12 @@ export const useInviteMutation = gql`
 `
 
 export const getWorkspaceInviteQuery = gql`
-  query GetWorkspaceInvite($workspaceId: String!, $token: String) {
-    workspaceInvite(workspaceId: $workspaceId, token: $token) {
+  query GetWorkspaceInvite(
+    $workspaceId: String!
+    $token: String
+    $options: WorkspaceInviteLookupOptions = null
+  ) {
+    workspaceInvite(workspaceId: $workspaceId, token: $token, options: $options) {
       ...BasicPendingWorkspaceCollaborator
     }
   }

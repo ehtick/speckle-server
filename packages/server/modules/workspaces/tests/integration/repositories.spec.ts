@@ -10,14 +10,16 @@ import {
   storeWorkspaceDomainFactory,
   getUserDiscoverableWorkspacesFactory,
   getWorkspaceWithDomainsFactory,
-  countWorkspaceRoleWithOptionalProjectRoleFactory
+  countWorkspaceRoleWithOptionalProjectRoleFactory,
+  getWorkspaceCollaboratorsFactory,
+  getWorkspaceBySlugFactory
 } from '@/modules/workspaces/repositories/workspaces'
 import db from '@/db/knex'
 import cryptoRandomString from 'crypto-random-string'
 import { expect } from 'chai'
 import { Workspace, WorkspaceAcl } from '@/modules/workspacesCore/domain/types'
 import { expectToThrow } from '@/test/assertionHelper'
-import { BasicTestUser, createTestUser } from '@/test/authHelper'
+import { BasicTestUser, createTestUser, createTestUsers } from '@/test/authHelper'
 import {
   BasicTestWorkspace,
   assignToWorkspace,
@@ -36,11 +38,14 @@ import {
 import { truncateTables } from '@/test/hooks'
 import { createTestStream } from '@/test/speckle-helpers/streamHelper'
 import {
-  grantStreamPermissions,
+  grantStreamPermissionsFactory,
   upsertProjectRoleFactory
 } from '@/modules/core/repositories/streams'
+import { omit } from 'lodash'
 
 const getWorkspace = getWorkspaceFactory({ db })
+const getWorkspaceBySlug = getWorkspaceBySlugFactory({ db })
+const getWorkspaceCollaborators = getWorkspaceCollaboratorsFactory({ db })
 const upsertWorkspace = upsertWorkspaceFactory({ db })
 const deleteWorkspace = deleteWorkspaceFactory({ db })
 const deleteWorkspaceRole = deleteWorkspaceRoleFactory({ db })
@@ -53,6 +58,7 @@ const createUserEmail = createUserEmailFactory({ db })
 const updateUserEmail = updateUserEmailFactory({ db })
 const getUserDiscoverableWorkspaces = getUserDiscoverableWorkspacesFactory({ db })
 const upsertProjectRole = upsertProjectRoleFactory({ db })
+const grantStreamPermissions = grantStreamPermissionsFactory({ db })
 
 const createAndStoreTestUser = async (): Promise<BasicTestUser> => {
   const testId = cryptoRandomString({ length: 6 })
@@ -75,6 +81,7 @@ const createAndStoreTestWorkspace = async (
 ) => {
   const workspace: Omit<Workspace, 'domains'> = {
     id: cryptoRandomString({ length: 10 }),
+    slug: cryptoRandomString({ length: 10 }),
     name: cryptoRandomString({ length: 10 }),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -83,6 +90,7 @@ const createAndStoreTestWorkspace = async (
     domainBasedMembershipProtectionEnabled: false,
     discoverabilityEnabled: false,
     defaultLogoIndex: 0,
+    defaultProjectRole: Roles.Stream.Contributor,
     ...workspaceOverrides
   }
 
@@ -100,6 +108,141 @@ describe('Workspace repositories', () => {
       expect(workspace).to.be.null
     })
     // not testing get here, we're going to use that for testing upsert
+  })
+
+  describe('getWorkspaceBySlugFactory creates a function, that', () => {
+    it('returns null if the workspace is not found', async () => {
+      const workspace = await getWorkspaceBySlug({
+        workspaceSlug: cryptoRandomString({ length: 10 })
+      })
+      expect(workspace).to.be.null
+    })
+    it('returns the workspace', async () => {
+      const testUserA: BasicTestUser = {
+        id: '',
+        name: 'John A Speckle',
+        email: 'john@example.speckle',
+        role: Roles.Server.Admin
+      }
+      const testWorkspace: BasicTestWorkspace = {
+        id: '',
+        ownerId: '',
+        slug: cryptoRandomString({ length: 10 }),
+        name: 'Test Workspace'
+      }
+
+      await createTestUsers([testUserA])
+      await createTestWorkspace(testWorkspace, testUserA)
+
+      const workspace = await getWorkspaceBySlug({
+        workspaceSlug: testWorkspace.slug
+      })
+      expect(workspace?.id).to.be.equal(testWorkspace.id)
+    })
+  })
+
+  describe('getWorkspaceCollaboratorsFactory creates a function, that', () => {
+    const testUserA: BasicTestUser = {
+      id: '',
+      name: 'John A Speckle',
+      email: 'john-a-speckle-collaborators@example.org',
+      role: Roles.Server.Admin
+    }
+
+    const testUserB: BasicTestUser = {
+      id: '',
+      name: 'John B Speckle',
+      email: 'john-b-speckle-collaborators@example.org'
+    }
+
+    const testUserC: BasicTestUser = {
+      id: '',
+      name: 'John C Speckle',
+      email: 'john-c-speckle-collaborators@example.org'
+    }
+
+    before(async () => {
+      await createTestUsers([testUserA, testUserB, testUserC])
+    })
+
+    describe('when one workspace exists', () => {
+      const testWorkspace: BasicTestWorkspace = {
+        id: '',
+        ownerId: '',
+        slug: cryptoRandomString({ length: 10 }),
+        name: 'Test Workspace'
+      }
+
+      beforeEach(async () => {
+        await createTestWorkspace(testWorkspace, testUserA)
+        await assignToWorkspace(testWorkspace, testUserB, Roles.Workspace.Member)
+      })
+
+      afterEach(async () => {
+        truncateTables(['workspaces'])
+      })
+
+      it('returns all workspace members', async () => {
+        const team = await getWorkspaceCollaborators({
+          workspaceId: testWorkspace.id,
+          limit: 50
+        })
+        expect(team.length).to.equal(2)
+      })
+    })
+
+    describe('when multiple workspaces exist', () => {
+      const testWorkspaces: BasicTestWorkspace[] = [
+        {
+          id: '',
+          ownerId: '',
+          name: 'Test Workspace A',
+          slug: cryptoRandomString({ length: 10 })
+        },
+        {
+          id: '',
+          ownerId: '',
+          name: 'Test Workspace B',
+          slug: cryptoRandomString({ length: 10 })
+        },
+        {
+          id: '',
+          ownerId: '',
+          name: 'Test Workspace C',
+          slug: cryptoRandomString({ length: 10 })
+        }
+      ]
+
+      beforeEach(async () => {
+        for (const workspace of testWorkspaces) {
+          await createTestWorkspace(workspace, testUserA)
+          await assignToWorkspace(workspace, testUserB, Roles.Workspace.Member)
+
+          if (workspace.name === 'Test Workspace C') {
+            return
+          }
+
+          await assignToWorkspace(workspace, testUserC, Roles.Workspace.Member)
+        }
+      })
+
+      afterEach(async () => {
+        truncateTables(['workspaces'])
+      })
+
+      it('limits search results to specified workspace', async () => {
+        const result = await getWorkspaceCollaborators({
+          workspaceId: testWorkspaces[2].id,
+          limit: 50,
+          filter: { search: 'John' }
+        })
+        expect(result.length).to.equal(2)
+        expect(result.map((user) => user.id)).to.have.members([
+          testUserA.id,
+          testUserB.id
+        ])
+      })
+    })
   })
 
   describe('upsertWorkspaceFactory creates a function, that', () => {
@@ -126,11 +269,16 @@ describe('Workspace repositories', () => {
       const storedWorkspace = await getWorkspace({ workspaceId: testWorkspace.id })
       expect(storedWorkspace).to.deep.equal(testWorkspace)
 
+      const updateData = {
+        slug: cryptoRandomString({ length: 10 }),
+        name: cryptoRandomString({ length: 20 }),
+        createdAt: new Date()
+      }
+
       await upsertWorkspace({
         workspace: {
           ...testWorkspace,
-          id: cryptoRandomString({ length: 13 }),
-          createdAt: new Date()
+          ...updateData
         }
       })
 
@@ -138,7 +286,10 @@ describe('Workspace repositories', () => {
         workspaceId: testWorkspace.id
       })
 
-      expect(modifiedStoredWorkspace).to.deep.equal(testWorkspace)
+      expect(modifiedStoredWorkspace).to.deep.equal({
+        ...testWorkspace,
+        ...omit(updateData, ['createdAt'])
+      })
     })
   })
 
@@ -152,6 +303,7 @@ describe('Workspace repositories', () => {
     const workspace: BasicTestWorkspace = {
       id: '',
       ownerId: '',
+      slug: cryptoRandomString({ length: 10 }),
       name: 'Incredibly Forgettable'
     }
 
@@ -650,6 +802,7 @@ describe('Workspace repositories', () => {
       const workspace = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: user.id
       }
       await createTestWorkspace(workspace, user)
@@ -683,6 +836,7 @@ describe('Workspace repositories', () => {
       const workspace = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
       await createTestWorkspace(workspace, admin)
@@ -691,6 +845,7 @@ describe('Workspace repositories', () => {
       const workspace2 = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
       await createTestWorkspace(workspace2, admin)
@@ -732,6 +887,7 @@ describe('Workspace repositories', () => {
       const workspace = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
 
@@ -803,6 +959,7 @@ describe('Workspace repositories', () => {
       const workspace = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
       await createTestWorkspace(workspace, admin)
@@ -880,6 +1037,7 @@ describe('Workspace repositories', () => {
       const workspace1 = {
         id: createRandomPassword(),
         name: 'my workspace',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
       await createTestWorkspace(workspace1, admin)
@@ -887,6 +1045,7 @@ describe('Workspace repositories', () => {
       const workspace2 = {
         id: createRandomPassword(),
         name: 'my workspace 2',
+        slug: cryptoRandomString({ length: 10 }),
         ownerId: admin.id
       }
       await createTestWorkspace(workspace2, admin)

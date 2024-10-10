@@ -5,6 +5,13 @@
         title="Security"
         text="Manage verified workspace domains and associated features."
       />
+      <template v-if="isSsoEnabled">
+        <SettingsWorkspacesSecuritySso
+          v-if="result?.workspace"
+          :workspace="result.workspace"
+        />
+        <hr class="my-6 md:my-8 border-outline-2" />
+      </template>
       <section>
         <SettingsSectionHeader title="Your domains" class="pb-4 md:pb-6" subheading />
         <ul v-if="hasWorkspaceDomains">
@@ -46,6 +53,8 @@
             <FormSelectBase
               v-model="selectedDomain"
               :items="verifiedUserDomains"
+              :disabled-item-predicate="disabledItemPredicate"
+              disabled-item-tooltip="This domain can't be used for verified workspace domains"
               name="workspaceDomains"
               label="Verified domains"
               class="w-full"
@@ -111,6 +120,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ShallowRef } from 'vue'
 import { useApolloClient, useQuery } from '@vue/apollo-composable'
 import { graphql } from '~/lib/common/generated/gql'
 import type {
@@ -122,6 +132,7 @@ import { getCacheId, getFirstErrorMessage } from '~/lib/common/helpers/graphql'
 import { settingsWorkspacesSecurityQuery } from '~/lib/settings/graphql/queries'
 import { useAddWorkspaceDomain } from '~/lib/settings/composables/management'
 import { useMixpanel } from '~/lib/core/composables/mp'
+import { blockedDomains } from '@speckle/shared'
 
 graphql(`
   fragment SettingsWorkspacesSecurity_Workspace on Workspace {
@@ -133,6 +144,7 @@ graphql(`
     }
     domainBasedMembershipProtectionEnabled
     discoverabilityEnabled
+    ...SettingsWorkspacesSecuritySso_Workspace
   }
 
   fragment SettingsWorkspacesSecurity_User on User {
@@ -151,6 +163,7 @@ const props = defineProps<{
 
 const addWorkspaceDomain = useAddWorkspaceDomain()
 const { triggerNotification } = useGlobalToast()
+const isSsoEnabled = useIsWorkspacesSsoEnabled()
 const apollo = useApolloClient().client
 const mixpanel = useMixpanel()
 
@@ -158,6 +171,7 @@ const selectedDomain = ref<string>()
 const showRemoveDomainDialog = ref(false)
 const removeDialogDomain =
   ref<SettingsWorkspacesSecurityDomainRemoveDialog_WorkspaceDomainFragment>()
+const blockedDomainItems: ShallowRef<string[]> = shallowRef(blockedDomains)
 
 const { result } = useQuery(settingsWorkspacesSecurityQuery, {
   workspaceId: props.workspaceId
@@ -312,6 +326,10 @@ const openRemoveDialog = (
 ) => {
   removeDialogDomain.value = domain
   showRemoveDomainDialog.value = true
+}
+
+const disabledItemPredicate = (item: string) => {
+  return blockedDomainItems.value.includes(item)
 }
 
 watch(

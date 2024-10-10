@@ -55,6 +55,11 @@
           "description": "High level flag fully toggles the workspaces module",
           "default": false
         },
+        "workspaceSsoEnabled": {
+          "type": "boolean",
+          "description": "High level flag fully toggles the workspaces dynamic sso",
+          "default": false
+        },
         "multipleEmailsModuleEnabled": {
           "type": "boolean",
           "description": "High level flag fully toggles multiple emails",
@@ -1663,6 +1668,21 @@
               "type": "string",
               "description": "The port on which the metrics server will be exposed.",
               "default": "9094"
+            }
+          }
+        },
+        "puppeteer": {
+          "type": "object",
+          "properties": {
+            "userDataDirectory": {
+              "type": "string",
+              "description": "The path to the user data directory. If not set, defaults to '/tmp/puppeteer'. This is mounted in the deployment as a volume with read-write access.",
+              "default": ""
+            },
+            "timeoutMilliseconds": {
+              "type": "string",
+              "description": "The timeout in milliseconds for the Puppeteer service.",
+              "default": "3600000"
             }
           }
         },

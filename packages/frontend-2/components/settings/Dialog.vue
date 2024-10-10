@@ -14,7 +14,7 @@
         class="w-full md:w-56 lg:w-60 md:pb-4 md:px-2 md:pt-6 md:bg-foundation md:border-r md:border-outline-3"
       >
         <LayoutSidebarMenu>
-          <LayoutSidebarMenuGroup title="Account settings">
+          <LayoutSidebarMenuGroup title="User settings">
             <template #title-icon>
               <IconAccount class="size-4" />
             </template>
@@ -85,15 +85,17 @@
                 />
               </template>
             </LayoutSidebarMenuGroup>
-            <LayoutSidebarMenuGroupItem
+            <NuxtLink
               v-if="canCreateWorkspace"
-              label="Add workspace"
-              @click="openWorkspaceCreateDialog"
+              :to="workspacesRoute"
+              @click="isOpen = false"
             >
-              <template #icon>
-                <PlusIcon class="h-4 w-4 text-foreground-2" />
-              </template>
-            </LayoutSidebarMenuGroupItem>
+              <LayoutSidebarMenuGroupItem label="Create workspace">
+                <template #icon>
+                  <PlusIcon class="h-4 w-4 text-foreground-2" />
+                </template>
+              </LayoutSidebarMenuGroupItem>
+            </NuxtLink>
           </LayoutSidebarMenuGroup>
         </LayoutSidebarMenu>
       </LayoutSidebar>
@@ -136,11 +138,13 @@ import {
 import { graphql } from '~~/lib/common/generated/gql'
 import type { WorkspaceRoles } from '@speckle/shared'
 import { useMixpanel } from '~~/lib/core/composables/mp'
+import { workspacesRoute } from '~/lib/common/helpers/route'
 
 graphql(`
   fragment SettingsDialog_Workspace on Workspace {
     ...WorkspaceAvatar_Workspace
     id
+    slug
     role
     name
   }
@@ -148,6 +152,7 @@ graphql(`
 
 graphql(`
   fragment SettingsDialog_User on User {
+    id
     workspaces {
       items {
         ...SettingsDialog_Workspace
@@ -207,13 +212,6 @@ const onWorkspaceMenuItemClick = (id: string, target: string, disabled?: boolean
   })
 }
 
-const openWorkspaceCreateDialog = () => {
-  showWorkspaceCreateDialog.value = true
-  mixpanel.track('Create Workspace Button Clicked', {
-    source: 'settings'
-  })
-}
-
 const workspaceMenuItemClasses = (
   itemKey: string | number,
   workspaceId: string,
@@ -235,6 +233,6 @@ watch(
 </script>
 <style>
 .workspace-item h6 {
-  @apply !font-normal !text-body-xs !text-foreground;
+  @apply !font-normal text-body-xs !text-foreground;
 }
 </style>

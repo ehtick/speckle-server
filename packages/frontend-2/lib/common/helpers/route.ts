@@ -18,25 +18,6 @@ export const connectorsPageUrl = 'https://speckle.systems/features/connectors/'
 export const docsPageUrl = 'https://speckle.guide/'
 export const forumPageUrl = 'https://speckle.community/'
 
-export const settingsQueries: {
-  [key: string]: {
-    [key: string]: string
-  }
-} = {
-  user: {
-    profile: 'user/profile',
-    notifications: 'user/notifications',
-    developerSettings: 'user/developer-settings',
-    emails: 'user/emails'
-  },
-  server: {
-    general: 'server/general',
-    projects: 'server/projects',
-    activeUsers: 'server/active-users',
-    pendingInvitations: 'server/pending-invitations'
-  }
-}
-
 export const projectRoute = (
   id: string,
   tab?: 'models' | 'discussions' | 'automations' | 'settings'
@@ -88,7 +69,7 @@ export const automationFunctionsRoute = '/functions'
 export const automationFunctionRoute = (functionId: string) =>
   `${automationFunctionsRoute}/${functionId}`
 
-export const workspaceRoute = (id: string) => `/workspaces/${id}`
+export const workspaceRoute = (slug: string) => `/workspaces/${slug}`
 
 const buildNavigationComposable = (route: string) => () => {
   const router = useRouter()

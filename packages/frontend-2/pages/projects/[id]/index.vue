@@ -8,7 +8,7 @@
         @processed="onInviteAccepted"
       />
       <div
-        class="flex flex-col md:flex-row md:justify-between md:items-center gap-6 my-2"
+        class="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mt-2 mb-6"
       >
         <ProjectPageHeader :project="project" />
         <div class="flex gap-x-3 items-center justify-between">
@@ -18,7 +18,11 @@
                 project.modelCount.totalCount === 1 ? '' : 's'
               }}
             </CommonBadge>
-            <CommonBadge rounded :color-classes="'text-foreground-2 bg-primary-muted'">
+            <CommonBadge
+              v-if="project.role"
+              rounded
+              :color-classes="'text-foreground-2 bg-primary-muted'"
+            >
               <span class="capitalize">
                 {{ project.role?.split(':').reverse()[0] }}
               </span>
@@ -34,12 +38,34 @@
               Manage
             </FormButton>
           </div>
+          <LayoutMenu
+            v-model:open="showActionsMenu"
+            :items="actionsItems"
+            :menu-position="HorizontalDirection.Left"
+            :menu-id="menuId"
+            @click.stop.prevent
+            @chosen="onActionChosen"
+          >
+            <FormButton
+              color="subtle"
+              hide-text
+              :icon-right="EllipsisHorizontalIcon"
+              @click="showActionsMenu = !showActionsMenu"
+            />
+          </LayoutMenu>
         </div>
       </div>
       <LayoutTabsHorizontal v-model:active-item="activePageTab" :items="pageTabItems">
         <NuxtPage :project="project" />
       </LayoutTabsHorizontal>
     </div>
+
+    <ProjectsMoveToWorkspaceDialog
+      v-if="project"
+      v-model:open="showMoveDialog"
+      :project="project"
+      event-source="project-page"
+    />
   </div>
 </template>
 <script setup lang="ts">
@@ -52,6 +78,10 @@ import { LayoutTabsHorizontal, type LayoutPageTabItem } from '@speckle/ui-compon
 import { projectRoute, projectWebhooksRoute } from '~/lib/common/helpers/route'
 import { canEditProject } from '~~/lib/projects/helpers/permissions'
 import { projectCollaboratorsRoute } from '~~/lib/common/helpers/route'
+import type { LayoutMenuItem } from '~~/lib/layout/helpers/components'
+import { EllipsisHorizontalIcon } from '@heroicons/vue/24/solid'
+import { HorizontalDirection } from '~~/lib/common/composables/window'
+import { useCopyProjectLink } from '~~/lib/projects/composables/projectManagement'
 
 graphql(`
   fragment ProjectPageProject on Project {
@@ -63,9 +93,13 @@ graphql(`
     commentThreadCount: commentThreads(limit: 0) {
       totalCount
     }
+    workspace {
+      id
+    }
     ...ProjectPageTeamInternals_Project
     ...ProjectPageProjectHeader
     ...ProjectPageTeamDialog
+    ...ProjectsMoveToWorkspaceDialog_Project
   }
 `)
 
@@ -88,8 +122,15 @@ definePageMeta({
   alias: ['/projects/:id/models', '/projects/:id/webhooks']
 })
 
+enum ActionTypes {
+  CopyLink = 'copy-link',
+  Move = 'move'
+}
+
 const route = useRoute()
 const router = useRouter()
+const copyProjectLink = useCopyProjectLink()
+
 const projectId = computed(() => route.params.id as string)
 const token = computed(() => route.query.token as Optional<string>)
 
@@ -102,17 +143,13 @@ const { result: projectPageResult } = useQuery(
     ...(token.value?.length ? { token: token.value } : {})
   }),
   () => ({
-    fetchPolicy: pageFetchPolicy.value,
-    // Custom error policy so that a failing invitedTeam resolver (due to access rights)
-    // doesn't kill the entire query
-    errorPolicy: 'all'
-    // context: {
-    //   skipLoggingErrors: (err) =>
-    //     err.graphQLErrors?.length === 1 &&
-    //     err.graphQLErrors.some((e) => !!e.path?.includes('invitedTeam'))
-    // }
+    fetchPolicy: pageFetchPolicy.value
   })
 )
+
+const showActionsMenu = ref(false)
+const menuId = useId()
+const showMoveDialog = ref(false)
 
 const project = computed(() => projectPageResult.value?.project)
 const invite = computed(() => projectPageResult.value?.projectInvite || undefined)
@@ -124,6 +161,29 @@ const commentCount = computed(() => project.value?.commentThreadCount.totalCount
 const hasRole = computed(() => project.value?.role)
 const canEdit = computed(() => (project.value ? canEditProject(project.value) : false))
 const teamUsers = computed(() => project.value?.team.map((t) => t.user))
+const actionsItems = computed<LayoutMenuItem[][]>(() => {
+  const items: LayoutMenuItem[][] = [
+    [
+      {
+        title: 'Copy link',
+        id: ActionTypes.CopyLink
+      }
+    ]
+  ]
+
+  if (isWorkspacesEnabled.value && !project.value?.workspace?.id) {
+    items.push([
+      {
+        title: 'Move...',
+        id: ActionTypes.Move,
+        disabled: !isOwner.value,
+        disabledTooltip: 'Only project owners can move projects into workspaces'
+      }
+    ])
+  }
+
+  return items
+})
 
 useHead({
   title: projectName
@@ -139,6 +199,7 @@ const onInviteAccepted = async (params: { accepted: boolean }) => {
 
 const isOwner = computed(() => project.value?.role === Roles.Stream.Owner)
 const isAutomateEnabled = useIsAutomateModuleEnabled()
+const isWorkspacesEnabled = useIsWorkspacesEnabled()
 
 const pageTabItems = computed((): LayoutPageTabItem[] => {
   const items: LayoutPageTabItem[] = [
@@ -203,4 +264,17 @@ const activePageTab = computed({
     }
   }
 })
+
+const onActionChosen = (params: { item: LayoutMenuItem; event: MouseEvent }) => {
+  const { item } = params
+
+  switch (item.id) {
+    case ActionTypes.CopyLink:
+      copyProjectLink(projectId.value)
+      break
+    case ActionTypes.Move:
+      showMoveDialog.value = true
+      break
+  }
+}
 </script>

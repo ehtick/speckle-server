@@ -3,13 +3,9 @@
     <Portal to="navigation">
       <template v-if="project.workspace && isWorkspacesEnabled">
         <HeaderNavLink
-          :to="workspacesRoute"
-          name="Workspaces"
-          :separator="false"
-        ></HeaderNavLink>
-        <HeaderNavLink
-          :to="workspaceRoute(project.workspace.id)"
+          :to="workspaceRoute(project.workspace.slug)"
           :name="project.workspace.name"
+          :separator="false"
         ></HeaderNavLink>
       </template>
       <HeaderNavLink
@@ -28,7 +24,7 @@
     <div class="flex gap-x-3">
       <NuxtLink
         v-if="project.workspace && isWorkspacesEnabled"
-        :to="workspaceRoute(project.workspace.id)"
+        :to="workspaceRoute(project.workspace.slug)"
       >
         <WorkspaceAvatar
           :logo="project.workspace.logo"
@@ -49,7 +45,7 @@
 import { graphql } from '~~/lib/common/generated/gql'
 import type { ProjectPageProjectHeaderFragment } from '~~/lib/common/generated/gql/graphql'
 import { projectRoute, projectsRoute } from '~~/lib/common/helpers/route'
-import { workspaceRoute, workspacesRoute } from '~/lib/common/helpers/route'
+import { workspaceRoute } from '~/lib/common/helpers/route'
 
 graphql(`
   fragment ProjectPageProjectHeader on Project {
@@ -61,15 +57,16 @@ graphql(`
     allowPublicComments
     workspace {
       id
+      slug
       name
       ...WorkspaceAvatar_Workspace
     }
   }
 `)
 
-const isWorkspacesEnabled = useIsWorkspacesEnabled()
-
 defineProps<{
   project: ProjectPageProjectHeaderFragment
 }>()
+
+const isWorkspacesEnabled = useIsWorkspacesEnabled()
 </script>

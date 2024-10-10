@@ -9,9 +9,11 @@
     :label-id="labelId"
     :button-id="buttonId"
     mount-menu-on-body
+    :show-label="showLabel"
     :fully-control-value="fullyControlValue"
     :disabled="disabled"
     :disabled-item-predicate="disabledItemPredicate"
+    :clearable="clearable"
   >
     <template #nothing-selected>
       {{ multiple ? 'Select roles' : 'Select role' }}
@@ -39,8 +41,13 @@
       </template>
     </template>
     <template #option="{ item }">
-      <div class="flex items-center">
-        <span class="truncate">{{ RoleInfo.Workspace[firstItem(item)].title }}</span>
+      <div class="flex flex-col space-y-0.5">
+        <span class="truncate" :class="{ 'font-medium': !hideDescription }">
+          {{ RoleInfo.Workspace[firstItem(item)].title }}
+        </span>
+        <span v-if="!hideDescription" class="text-body-2xs text-foreground-2">
+          {{ RoleInfo.Workspace[firstItem(item)].description }}
+        </span>
       </div>
     </template>
   </FormSelectBase>
@@ -74,6 +81,12 @@ const props = defineProps({
   disabledItems: {
     required: false,
     type: Array as PropType<WorkspaceRoles[]>
+  },
+  showLabel: Boolean,
+  clearable: Boolean,
+  hideDescription: {
+    required: false,
+    type: Boolean
   }
 })
 

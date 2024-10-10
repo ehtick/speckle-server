@@ -6,31 +6,11 @@ import { Optional, SpeckleModule } from '@/modules/shared/helpers/typeHelper'
 import { workspaceRoles } from '@/modules/workspaces/roles'
 import { workspaceScopes } from '@/modules/workspaces/scopes'
 import { registerOrUpdateRole } from '@/modules/shared/repositories/roles'
-import {
-  initializeEventListenersFactory,
-  onInviteFinalizedFactory,
-  onProjectCreatedFactory,
-  onWorkspaceJoinedFactory
-} from '@/modules/workspaces/events/eventListener'
-import {
-  getWorkspaceRolesFactory,
-  getWorkspaceWithDomainsFactory,
-  upsertWorkspaceRoleFactory
-} from '@/modules/workspaces/repositories/workspaces'
-import {
-  deleteProjectRoleFactory,
-  getStream,
-  upsertProjectRoleFactory
-} from '@/modules/core/repositories/streams'
-import { updateWorkspaceRoleFactory } from '@/modules/workspaces/services/management'
-import { getEventBus } from '@/modules/shared/services/eventBus'
-import { getStreams } from '@/modules/core/services/streams'
-import { findVerifiedEmailsByUserIdFactory } from '@/modules/core/repositories/userEmails'
+import { initializeEventListenersFactory } from '@/modules/workspaces/events/eventListener'
 import { validateModuleLicense } from '@/modules/gatekeeper/services/validateLicense'
-import { queryAllWorkspaceProjectsFactory } from '@/modules/workspaces/services/projects'
-import { mapWorkspaceRoleToInitialProjectRole } from '@/modules/workspaces/domain/logic'
+import ssoRouter from '@/modules/workspaces/rest/sso'
 
-const { FF_WORKSPACES_MODULE_ENABLED } = getFeatureFlags()
+const { FF_WORKSPACES_MODULE_ENABLED, FF_WORKSPACES_SSO_ENABLED } = getFeatureFlags()
 
 let quitListeners: Optional<() => void> = undefined
 
@@ -45,7 +25,7 @@ const initRoles = async () => {
 }
 
 const workspacesModule: SpeckleModule = {
-  async init(_, isInitial) {
+  async init(app, isInitial) {
     if (!FF_WORKSPACES_MODULE_ENABLED) return
     const isWorkspaceLicenseValid = await validateModuleLicense({
       requiredModules: ['workspaces']
@@ -57,34 +37,11 @@ const workspacesModule: SpeckleModule = {
       )
     moduleLogger.info('⚒️  Init workspaces module')
 
+    if (FF_WORKSPACES_SSO_ENABLED) app.use(ssoRouter)
+
     if (isInitial) {
-      quitListeners = initializeEventListenersFactory({
-        onProjectCreated: onProjectCreatedFactory({
-          getDefaultWorkspaceProjectRoleMapping: mapWorkspaceRoleToInitialProjectRole,
-          upsertProjectRole: upsertProjectRoleFactory({ db }),
-          getWorkspaceRoles: getWorkspaceRolesFactory({ db })
-        }),
-        onWorkspaceJoined: onWorkspaceJoinedFactory({
-          getDefaultWorkspaceProjectRoleMapping: mapWorkspaceRoleToInitialProjectRole,
-          queryAllWorkspaceProjects: queryAllWorkspaceProjectsFactory({ getStreams }),
-          upsertProjectRole: upsertProjectRoleFactory({ db })
-        }),
-        onInviteFinalized: onInviteFinalizedFactory({
-          getStream,
-          logger: moduleLogger,
-          updateWorkspaceRole: updateWorkspaceRoleFactory({
-            getWorkspaceWithDomains: getWorkspaceWithDomainsFactory({ db }),
-            findVerifiedEmailsByUserId: findVerifiedEmailsByUserIdFactory({ db }),
-            getWorkspaceRoles: getWorkspaceRolesFactory({ db }),
-            upsertWorkspaceRole: upsertWorkspaceRoleFactory({ db }),
-            getDefaultWorkspaceProjectRoleMapping: mapWorkspaceRoleToInitialProjectRole,
-            upsertProjectRole: upsertProjectRoleFactory({ db }),
-            deleteProjectRole: deleteProjectRoleFactory({ db }),
-            queryAllWorkspaceProjects: queryAllWorkspaceProjectsFactory({ getStreams }),
-            emitWorkspaceEvent: (...args) => getEventBus().emit(...args)
-          })
-        })
-      })()
+      // register the SSO endpoints
+      quitListeners = initializeEventListenersFactory({ db })()
     }
     await Promise.all([initScopes(), initRoles()])
   },

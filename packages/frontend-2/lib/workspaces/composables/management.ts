@@ -184,13 +184,18 @@ export const useProcessWorkspaceInvite = () => {
         type: ToastNotificationType.Success,
         title: input.accept ? 'Invite accepted' : 'Invite dismissed'
       })
+
+      mp.track('Workspace Joined', {
+        // eslint-disable-next-line camelcase
+        workspace_id: workspaceId
+      })
+
       mp.track('Invite Action', {
         type: 'workspace invite',
         accepted: input.accept,
         // eslint-disable-next-line camelcase
         workspace_id: workspaceId
       })
-      mp.add_group('workspace_id', workspaceId)
     } else {
       const err = getFirstErrorMessage(errors)
       const preventErrorToasts = isFunction(options?.preventErrorToasts)
@@ -216,6 +221,7 @@ graphql(`
     id
     token
     workspaceId
+    workspaceSlug
     user {
       id
     }
@@ -278,6 +284,7 @@ export const useWorkspaceInviteManager = <
     if (!token.value || !invite.value) return false
 
     const workspaceId = invite.value.workspaceId
+    const workspaceSlug = invite.value.workspaceSlug
     const shouldAddNewEmail = canAddNewEmail.value && addNewEmail
 
     loading.value = true
@@ -297,8 +304,8 @@ export const useWorkspaceInviteManager = <
 
           // Redirect
           if (accept) {
-            if (workspaceId) {
-              window.location.href = workspaceRoute(workspaceId)
+            if (workspaceSlug) {
+              window.location.href = workspaceRoute(workspaceSlug)
             } else {
               window.location.reload()
             }
@@ -394,7 +401,7 @@ export function useCreateWorkspace() {
       })
 
       if (options?.navigateOnSuccess === true) {
-        router.push(workspaceRoute(res.data?.workspaceMutations.create.id))
+        router.push(workspaceRoute(res.data?.workspaceMutations.create.slug))
       }
     } else {
       const err = getFirstErrorMessage(res.errors)
@@ -414,7 +421,32 @@ export const useWorkspaceUpdateRole = () => {
   const { triggerNotification } = useGlobalToast()
 
   return async (input: WorkspaceRoleUpdateInput) => {
-    const result = await mutate({ input }).catch(convertThrowIntoFetchResult)
+    const result = await mutate(
+      { input },
+      {
+        update: (cache) => {
+          if (!input.role) {
+            cache.evict({
+              id: getCacheId('WorkspaceCollaborator', input.userId)
+            })
+
+            modifyObjectField(
+              cache,
+              getCacheId('Workspace', input.workspaceId),
+              'team',
+              ({ helpers: { createUpdatedValue } }) => {
+                return createUpdatedValue(({ update }) => {
+                  update('totalCount', (totalCount) => totalCount - 1)
+                })
+              },
+              {
+                autoEvictFiltered: true
+              }
+            )
+          }
+        }
+      }
+    ).catch(convertThrowIntoFetchResult)
 
     if (result?.data) {
       triggerNotification({
@@ -435,11 +467,11 @@ export const useWorkspaceUpdateRole = () => {
   }
 }
 
-export const copyWorkspaceLink = async (id: string) => {
+export const copyWorkspaceLink = async (slug: string) => {
   const { copy } = useClipboard()
   const { triggerNotification } = useGlobalToast()
 
-  const url = new URL(workspaceRoute(id), window.location.toString()).toString()
+  const url = new URL(workspaceRoute(slug), window.location.toString()).toString()
 
   await copy(url)
   triggerNotification({

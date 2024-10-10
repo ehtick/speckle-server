@@ -11,12 +11,59 @@ const {
   changeUserRole
 } = require('@/modules/core/services/users')
 const { createPersonalAccessToken } = require('../services/tokens')
-const {
-  addOrUpdateStreamCollaborator,
-  removeStreamCollaborator
-} = require('@/modules/core/services/streams/streamAccessService')
 const { Roles, Scopes } = require('@speckle/shared')
 const cryptoRandomString = require('crypto-random-string')
+const { saveActivityFactory } = require('@/modules/activitystream/repositories')
+const { db } = require('@/db/knex')
+const {
+  validateStreamAccessFactory,
+  isStreamCollaboratorFactory,
+  removeStreamCollaboratorFactory,
+  addOrUpdateStreamCollaboratorFactory
+} = require('@/modules/core/services/streams/access')
+const { authorizeResolver } = require('@/modules/shared')
+const {
+  getStreamFactory,
+  revokeStreamPermissionsFactory,
+  grantStreamPermissionsFactory
+} = require('@/modules/core/repositories/streams')
+const {
+  addStreamPermissionsRevokedActivityFactory,
+  addStreamInviteAcceptedActivityFactory,
+  addStreamPermissionsAddedActivityFactory
+} = require('@/modules/activitystream/services/streamActivity')
+const { publish } = require('@/modules/shared/utils/subscriptions')
+const { getUser } = require('@/modules/core/repositories/users')
+
+const getStream = getStreamFactory({ db })
+const saveActivity = saveActivityFactory({ db })
+const validateStreamAccess = validateStreamAccessFactory({ authorizeResolver })
+const isStreamCollaborator = isStreamCollaboratorFactory({
+  getStream
+})
+const removeStreamCollaborator = removeStreamCollaboratorFactory({
+  validateStreamAccess,
+  isStreamCollaborator,
+  revokeStreamPermissions: revokeStreamPermissionsFactory({ db }),
+  addStreamPermissionsRevokedActivity: addStreamPermissionsRevokedActivityFactory({
+    saveActivity,
+    publish
+  })
+})
+
+const addOrUpdateStreamCollaborator = addOrUpdateStreamCollaboratorFactory({
+  validateStreamAccess,
+  getUser,
+  grantStreamPermissions: grantStreamPermissionsFactory({ db }),
+  addStreamInviteAcceptedActivity: addStreamInviteAcceptedActivityFactory({
+    saveActivity,
+    publish
+  }),
+  addStreamPermissionsAddedActivity: addStreamPermissionsAddedActivityFactory({
+    saveActivity,
+    publish
+  })
+})
 
 let app
 let server
@@ -303,7 +350,7 @@ describe('GraphQL API Core @core-api', () => {
         })
         expect(goodTokenScopesBadEmail.body.errors).to.exist
         expect(goodTokenScopesBadEmail.body.errors[0].extensions?.code).to.equal(
-          'BAD_USER_INPUT'
+          'BAD_REQUEST_ERROR'
         )
         const goodTokenScopesGoodEmail = await sendRequest(userDelete.token, {
           query:
@@ -626,7 +673,9 @@ describe('GraphQL API Core @core-api', () => {
           query: '{ adminStreams(limit: 200) { totalCount items { id name } } }'
         })
         expect(streamResults.body.errors).to.exist
-        expect(streamResults.body.errors[0].extensions.code).to.equal('BAD_USER_INPUT')
+        expect(streamResults.body.errors[0].extensions.code).to.equal(
+          'BAD_REQUEST_ERROR'
+        )
 
         streamResults = await sendRequest(userA.token, {
           query: '{ adminStreams(limit: 2) { totalCount items { id name } } }'
@@ -1269,14 +1318,14 @@ describe('GraphQL API Core @core-api', () => {
         let res = await sendRequest(userB.token, { query: queryLim })
         expect(res).to.be.json
         expect(res.body.errors).to.exist
-        expect(res.body.errors[0].extensions.code).to.equal('BAD_USER_INPUT')
+        expect(res.body.errors[0].extensions.code).to.equal('BAD_REQUEST_ERROR')
 
         const queryPagination =
           'query { userSearch( query: "matteo", limit: 200 ) { cursor items { id name } } } '
         res = await sendRequest(userB.token, { query: queryPagination })
         expect(res).to.be.json
         expect(res.body.errors).to.exist
-        expect(res.body.errors[0].extensions.code).to.equal('BAD_USER_INPUT')
+        expect(res.body.errors[0].extensions.code).to.equal('BAD_REQUEST_ERROR')
       })
     })
 
